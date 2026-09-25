@@ -1,0 +1,4 @@
+Border beam visual concept adapted from Libraries.dev / border-beam.
+Copyright (c) Jakub Antalik and contributors.
+Source: https://github.com/Jakubantalik/Libraries.dev
+Licensed under the MIT License.
