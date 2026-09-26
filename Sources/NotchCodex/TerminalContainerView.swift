@@ -1,5 +1,6 @@
 import AppKit
 import SwiftTerm
+import UniformTypeIdentifiers
 
 final class TerminalContainerView: NSView {
     let terminal = LocalProcessTerminalView(frame: .zero)
@@ -12,6 +13,7 @@ final class TerminalContainerView: NSView {
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
         layer?.masksToBounds = true
+        registerForDraggedTypes([.fileURL])
 
         terminal.translatesAutoresizingMaskIntoConstraints = false
         terminal.nativeBackgroundColor = .black
@@ -28,6 +30,25 @@ final class TerminalContainerView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        droppedImageURL(from: sender) == nil ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        droppedImageURL(from: sender) == nil ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        droppedImageURL(from: sender) != nil
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let url = droppedImageURL(from: sender) else { return false }
+        focus()
+        send(url.path)
+        return true
+    }
 
     func launchIfNeeded() {
         guard !didLaunch else { return }
@@ -68,6 +89,24 @@ final class TerminalContainerView: NSView {
         terminal.nativeBackgroundColor = background
         terminal.backgroundOpacity = appearanceOpacity
         terminal.needsDisplay = true
+    }
+
+    private func droppedImageURL(from draggingInfo: NSDraggingInfo) -> URL? {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true
+        ]
+        guard let items = draggingInfo.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: options
+        ) as? [NSURL] else { return nil }
+
+        return items
+            .map { $0 as URL }
+            .first { url in
+                guard url.isFileURL,
+                      let type = UTType(filenameExtension: url.pathExtension) else { return false }
+                return type.conforms(to: .image)
+            }
     }
 
     private func inheritedEnvironment() -> [String] {
