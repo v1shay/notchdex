@@ -24,7 +24,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.controller = controller
         self.gestures = GestureController(
             isOpen: { [weak controller] in controller?.isExpanded ?? false },
-            toggle: { [weak controller] in controller?.toggle() },
             close: { [weak controller] in controller?.collapse() },
             typeText: { [weak controller] text in controller?.type(text) },
             beginDictation: { [weak controller] in controller?.beginDictation() },

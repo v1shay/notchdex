@@ -8,16 +8,13 @@ final class GestureController {
     private var localMonitor: Any?
     private var retryTimer: Timer?
     private let isOpen: () -> Bool
-    private let toggle: () -> Void
     private let close: () -> Void
     private let typeText: (String) -> Void
     private let beginDictation: () -> Void
     private let endDictation: () -> Void
 
     private var shiftDown = false
-    private var shiftHold: DispatchWorkItem?
     private var lastShiftTap: TimeInterval = 0
-    private var suppressNextShiftRelease = false
     private var xDown = false
     private var xHold: DispatchWorkItem?
     private var dictating = false
@@ -25,14 +22,12 @@ final class GestureController {
 
     init(
         isOpen: @escaping () -> Bool,
-        toggle: @escaping () -> Void,
         close: @escaping () -> Void,
         typeText: @escaping (String) -> Void,
         beginDictation: @escaping () -> Void,
         endDictation: @escaping () -> Void
     ) {
         self.isOpen = isOpen
-        self.toggle = toggle
         self.close = close
         self.typeText = typeText
         self.beginDictation = beginDictation
@@ -130,29 +125,18 @@ final class GestureController {
     private func handleShift(down: Bool) {
         guard down != shiftDown else { return }
         shiftDown = down
-        if down {
-            let work = DispatchWorkItem { [weak self] in
-                guard let self, self.shiftDown, !self.isOpen() else { return }
-                self.suppressNextShiftRelease = true
-                self.toggle()
-                self.lastShiftTap = 0
-            }
-            shiftHold = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+        guard !down else { return }
+        guard isOpen() else {
+            lastShiftTap = 0
+            return
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - lastShiftTap < 0.38 {
+            lastShiftTap = 0
+            close()
         } else {
-            shiftHold?.cancel()
-            shiftHold = nil
-            if suppressNextShiftRelease {
-                suppressNextShiftRelease = false
-                return
-            }
-            let now = ProcessInfo.processInfo.systemUptime
-            if isOpen(), now - lastShiftTap < 0.38 {
-                lastShiftTap = 0
-                close()
-            } else {
-                lastShiftTap = now
-            }
+            lastShiftTap = now
         }
     }
 
