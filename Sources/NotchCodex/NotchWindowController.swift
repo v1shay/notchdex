@@ -10,6 +10,21 @@ final class NotchWindowController: NSWindowController {
     private let toolbar: NotchToolbarView
     private var terminals: [TerminalContainerView?] = Array(repeating: nil, count: 4)
     private let dictation = VoiceDictationController()
+    private lazy var restartButton: NSButton = {
+        let image = NSImage(
+            systemSymbolName: "arrow.clockwise",
+            accessibilityDescription: "Restart terminal"
+        )?.withSymbolConfiguration(.init(pointSize: 8.5, weight: .medium))
+        let button = NSButton(image: image ?? NSImage(), target: self, action: #selector(restartActiveTerminal))
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.contentTintColor = NSColor.white.withAlphaComponent(0.34)
+        button.toolTip = "Restart current terminal"
+        button.alphaValue = 0
+        button.isHidden = true
+        return button
+    }()
     private(set) var isExpanded = false
 
     private var activeTerminal: TerminalContainerView? { terminals[activeTerminalIndex] }
@@ -54,6 +69,13 @@ final class NotchWindowController: NSWindowController {
         root.onClick = { [weak self] in self?.toggle() }
 
         _ = createTerminal(at: 0)
+        root.addSubview(restartButton, positioned: .above, relativeTo: nil)
+        NSLayoutConstraint.activate([
+            restartButton.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            restartButton.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -2),
+            restartButton.widthAnchor.constraint(equalToConstant: 14),
+            restartButton.heightAnchor.constraint(equalToConstant: 14)
+        ])
 
         NotificationCenter.default.addObserver(
             self,
@@ -88,6 +110,7 @@ final class NotchWindowController: NSWindowController {
         let terminal = createTerminal(at: activeTerminalIndex)
         terminal.isHidden = false
         toolbar.isHidden = false
+        restartButton.isHidden = false
         root.setExpanded(true)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -98,6 +121,7 @@ final class NotchWindowController: NSWindowController {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             terminal.animator().alphaValue = 1
             toolbar.animator().alphaValue = 1
+            restartButton.animator().alphaValue = 1
         } completionHandler: { [weak terminal] in terminal?.focus() }
     }
 
@@ -110,9 +134,11 @@ final class NotchWindowController: NSWindowController {
             context.duration = 0.16
             terminal?.animator().alphaValue = 0
             toolbar.animator().alphaValue = 0
+            restartButton.animator().alphaValue = 0
         } completionHandler: { [weak self] in
             terminal?.isHidden = true
             self?.toolbar.isHidden = true
+            self?.restartButton.isHidden = true
             self?.root.setExpanded(false)
             self?.window?.resignKey()
             self?.window?.ignoresMouseEvents = true
@@ -189,6 +215,29 @@ final class NotchWindowController: NSWindowController {
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 0.82, 0.26, 1)
             window?.animator().setFrame(geometry.windowFrame, display: true)
         } completionHandler: { [weak self] in self?.activeTerminal?.focus() }
+    }
+
+    @objc private func restartActiveTerminal() {
+        guard isExpanded, let current = activeTerminal else { return }
+        dictation.end()
+
+        let index = activeTerminalIndex
+        current.terminate()
+        current.removeFromSuperview()
+        terminals[index] = nil
+
+        let replacement = createTerminal(at: index)
+        replacement.alphaValue = 0
+        replacement.isHidden = false
+        replacement.launchIfNeeded()
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            replacement.animator().alphaValue = 1
+        } completionHandler: { [weak replacement] in
+            replacement?.focus()
+        }
     }
 
     @objc private func screenChanged() { positionOnCurrentScreen() }

@@ -68,6 +68,12 @@ final class TerminalContainerView: NSView {
         window?.makeFirstResponder(terminal)
     }
 
+    func terminate() {
+        guard didLaunch else { return }
+        terminal.terminate()
+        didLaunch = false
+    }
+
     func send(_ text: String) {
         let bytes = Array(text.utf8)
         terminal.process.send(data: bytes[...])
